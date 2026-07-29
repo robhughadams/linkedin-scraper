@@ -45,7 +45,10 @@ class LinkedInClient:
         return self._csrf_token
 
     def get(self, path, voyager=False, **kwargs):
-        url = f'{self.base_url}{path}'
+        if path.startswith('http://') or path.startswith('https://'):
+            url = path
+        else:
+            url = f'{self.base_url}{path}'
         headers = kwargs.pop('headers', {})
 
         if voyager:
@@ -97,3 +100,6 @@ class LinkedInClient:
             params={'keywords': keywords, 'page': page},
             voyager=False,
         )
+
+    def get_search_by_url(self, url):
+        return self.get(url, voyager=False)

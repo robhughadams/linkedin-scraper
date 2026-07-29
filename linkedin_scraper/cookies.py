@@ -1,7 +1,9 @@
 import argparse
 import os
+import shutil
 import sqlite3
 import glob
+import uuid
 from datetime import datetime
 
 
@@ -49,7 +51,13 @@ def extract_cookies(profile_dir, verbose=False):
     if verbose:
         print(f"[cookies] Reading: {db_path}")
 
-    conn = sqlite3.connect(db_path)
+    tmp = f"/tmp/cookies-{uuid.uuid4().hex[:8]}.sqlite"
+    shutil.copy2(db_path, tmp)
+    try:
+        conn = sqlite3.connect(tmp)
+    except Exception:
+        os.unlink(tmp)
+        raise
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
@@ -71,6 +79,7 @@ def extract_cookies(profile_dir, verbose=False):
     cursor.execute(query)
     rows = cursor.fetchall()
     conn.close()
+    os.unlink(tmp)
 
     cookies = []
     for row in rows:

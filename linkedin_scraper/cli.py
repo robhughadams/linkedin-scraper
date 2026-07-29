@@ -5,7 +5,7 @@ import os
 
 from .cookies import find_firefox_profiles, extract_cookies, format_cookies
 from .client import LinkedInClient
-from .search import search_people, search_posts
+from .search import parse_people_search, search_people, search_posts
 from .profile import get_profile
 
 
@@ -32,7 +32,38 @@ def cmd_cookies(args):
 
 def cmd_search_people(args):
     client = _make_client()
-    results = search_people(client, args.keywords, page=args.page)
+    page = args.page
+
+    if args.from_url:
+        resp = client.get_search_by_url(args.from_url)
+        results = parse_people_search(resp.text)
+    else:
+        results = search_people(client, args.keywords, page=page)
+
+        if args.all_pages:
+            all_results = list(results)
+            for p in range(2, 10):
+                batch = search_people(client, args.keywords, page=p)
+                if not batch:
+                    break
+                all_results.extend(batch)
+            results = all_results
+
+    if args.csv:
+        import csv, io
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(['name', 'headline', 'location', 'profile_url', 'urn'])
+        for r in results:
+            w.writerow([
+                r.get('name', ''),
+                r.get('headline', ''),
+                r.get('location', ''),
+                r.get('profile_url', ''),
+                r.get('urn', ''),
+            ])
+        print(buf.getvalue(), end='')
+        return
 
     if args.json:
         print(json.dumps(results, indent=2))
@@ -151,9 +182,12 @@ def main():
     p_search_sub = p_search_people.add_subparsers(dest='search_type', required=True)
 
     p_people = p_search_sub.add_parser('people', help='Search for people')
-    p_people.add_argument('keywords', help='Search keywords')
+    p_people.add_argument('keywords', nargs='?', default='', help='Search keywords')
     p_people.add_argument('--page', type=int, default=1)
+    p_people.add_argument('--from-url', help='Full LinkedIn search URL to fetch')
+    p_people.add_argument('--all-pages', action='store_true', help='Iterate all pages')
     p_people.add_argument('--json', action='store_true')
+    p_people.add_argument('--csv', action='store_true')
     p_people.set_defaults(func=cmd_search_people)
 
     p_posts = p_search_sub.add_parser('posts', help='Search for posts')
